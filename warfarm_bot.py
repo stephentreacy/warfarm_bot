@@ -31,7 +31,6 @@ async def on_message(message):
         except:
             await message.channel.send("Enter a valid link")
         else:
-            item_orders = {}
 
             items = wf.get_item_list(link)
 
@@ -45,18 +44,14 @@ async def on_message(message):
                     sell_orders = ', '.join(str(int(order)) for order in sell_orders) if sell_orders else 'None'
                     buy_orders = df_buy.nlargest(5, 'platinum')['platinum'].values.tolist()
                     buy_orders = ', '.join(str(int(order)) for order in buy_orders) if buy_orders else 'None'
-                    item_orders.update({item : [sell_orders, buy_orders, item.lower().replace(' ','_').replace('-','_').replace("'",'').replace('&','and')]})
 
                     #Create Embeded message with item information
-                    embed_item = discord.Embed(title=item)
+                    embed_item = discord.Embed(title=item, url='https://warframe.market/items/' + item.lower().replace(' ','_').replace('-','_').replace("'",'').replace('&','and'))
                     embed_item.add_field(name="Buy Orders", value=buy_orders, inline=False)
                     embed_item.add_field(name="Sell Orders", value=sell_orders, inline=False)
                     await message.channel.send(embed=embed_item)
 
+                #Wait between items to keep within 3 API requests per second
                 time.sleep(0.4)
-
-            #await message.channel.send(item_orders)
-
-
 
 client.run(os.getenv('TOKEN'))
