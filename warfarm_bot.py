@@ -3,25 +3,45 @@ import os
 import time
 import warfarm as wf
 import pandas as pd
+import pymongo
 
-client = discord.Client()
+client_disc = discord.Client()
 
-@client.event
+def connect_db():
+    client_db = pymongo.MongoClient()
+    user_links_db = client_db['links_db']
+    return user_links_db['user_links']
+
+@client_disc.event
 async def on_ready():
-    print(f'Logged in as {client.user}')
+    print(f'Logged in as {client_disc.user}')
 
-@client.event
+@client_disc.event
 async def on_message(message):
 
     #Ignores messages sent by bot
-    if message.author == client.user:
+    if message.author == client_disc.user:
         return
 
     #Test case to check bot is replying
     if message.content.startswith('$hi'):
         await message.channel.send('hello')
 
-    #Takes link and replies with messages containing item orders
+    if message.content.startswith('$help'):
+        #Create Embeded message with commands
+        embed_help = discord.Embed(title=Avilable Commands)
+        embed_help.add_field(name='$hi', value='Say hello', inline=False)
+        embed_help.add_field(name='$view', value='Show database', inline=False)
+        embed_help.add_field(name='$link <link>', value='Save tenno.zone link.', inline=False)
+        embed_help.add_field(name='$items', value='Show orders of items from warframe.market.', inline=False)
+        await message.channel.send(embed=embed_help)
+
+    #View databas contents.
+    if message.content.startswith('$view'):
+        for user in user_links.find():
+            print(user)
+
+    #Saves link to MongoDB
     if message.content.startswith('$link'):
         #Delete the message to prevent others using the link
         await message.delete()
@@ -29,8 +49,18 @@ async def on_message(message):
         try:
             link = message.content.split()[1]
         except:
-            await message.channel.send("Enter a valid link")
+            await message.channel.send('Enter a valid link or type $help')
         else:
+            try:
+                connect_db().insert_one(dict(user=message.author.id, link=link))
+            except:
+                await message.channel.send('Cannot connect to Database') 
+
+
+    #Get link from database and replies with messages containing item orders
+    if message.content.startswith('$items'):
+
+            #link=
 
             items = wf.get_item_list(link)
 
@@ -47,11 +77,11 @@ async def on_message(message):
 
                     #Create Embeded message with item information
                     embed_item = discord.Embed(title=item, url='https://warframe.market/items/' + item.lower().replace(' ','_').replace('-','_').replace("'",'').replace('&','and'))
-                    embed_item.add_field(name="Buy Orders", value=buy_orders, inline=False)
-                    embed_item.add_field(name="Sell Orders", value=sell_orders, inline=False)
+                    embed_item.add_field(name='Buy Orders', value=buy_orders, inline=False)
+                    embed_item.add_field(name='Sell Orders', value=sell_orders, inline=False)
                     await message.channel.send(embed=embed_item)
 
                 #Wait between items to keep within 3 API requests per second
                 time.sleep(0.4)
 
-client.run(os.getenv('TOKEN'))
+client_disc.run(os.getenv('TOKEN'))
