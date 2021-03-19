@@ -7,10 +7,9 @@ import pymongo
 
 client_disc = discord.Client()
 
-def connect_db():
-    client_db = pymongo.MongoClient()
-    user_links_db = client_db['links_db']
-    return user_links_db['user_links']
+client_db = pymongo.MongoClient()
+user_links_db = client_db['links_db']
+user_links = user_links_db['user_links']
 
 @client_disc.event
 async def on_ready():
@@ -29,20 +28,22 @@ async def on_message(message):
 
     if message.content.startswith('$help'):
         #Create Embeded message with commands
-        embed_help = discord.Embed(title=Avilable Commands)
+        embed_help = discord.Embed(title='Avilable Commands')
         embed_help.add_field(name='$hi', value='Say hello', inline=False)
-        embed_help.add_field(name='$view', value='Show database', inline=False)
+        embed_help.add_field(name='$view', value='Show database (Not to you though)', inline=False)
         embed_help.add_field(name='$link <link>', value='Save tenno.zone link.', inline=False)
         embed_help.add_field(name='$items', value='Show orders of items from warframe.market.', inline=False)
         await message.channel.send(embed=embed_help)
 
     #View databas contents.
     if message.content.startswith('$view'):
+        await message.channel.send('You have no power here')
         for user in user_links.find():
             print(user)
 
     #Saves link to MongoDB
     if message.content.startswith('$link'):
+        #TODO Provide more feedback
         #Delete the message to prevent others using the link
         await message.delete()
 
@@ -52,7 +53,7 @@ async def on_message(message):
             await message.channel.send('Enter a valid link or type $help')
         else:
             try:
-                connect_db().insert_one(dict(user=message.author.id, link=link))
+                user_links.update_one(dict(user=message.author.id), {'$set':{'link':link}},upsert=True)
             except:
                 await message.channel.send('Cannot connect to Database') 
 
@@ -60,7 +61,7 @@ async def on_message(message):
     #Get link from database and replies with messages containing item orders
     if message.content.startswith('$items'):
 
-            #link=
+            link= user_links.find_one({'user':message.author.id},{'link':1})['link']
 
             items = wf.get_item_list(link)
 
