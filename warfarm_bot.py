@@ -5,6 +5,16 @@ import warfarm as wf
 import pandas as pd
 import pymongo
 
+def help_message():
+    """Create Embeded message with available commands"""
+    embed_help = discord.Embed(title='Avilable Commands')
+    embed_help.add_field(name='$hi', value='Say hello', inline=False)
+    embed_help.add_field(name='$view', value='Show database (Not to you though)', inline=False)
+    embed_help.add_field(name='$link https://tenno.zone/planner/<unique ID>', value='Save tenno.zone link.', inline=False)
+    embed_help.add_field(name='$items', value='Show orders of items from warframe.market.', inline=False)
+
+    return embed_help
+
 client_disc = discord.Client()
 
 client_db = pymongo.MongoClient()
@@ -17,7 +27,8 @@ async def on_ready():
 
 @client_disc.event
 async def on_message(message):
-
+    """Reads message on Discord and replies to commands"""
+    
     #Ignores messages sent by bot
     if message.author == client_disc.user:
         return
@@ -26,16 +37,11 @@ async def on_message(message):
     if message.content.startswith('$hi'):
         await message.channel.send('hello')
 
+    #Create Embeded message with commands
     if message.content.startswith('$help'):
-        #Create Embeded message with commands
-        embed_help = discord.Embed(title='Avilable Commands')
-        embed_help.add_field(name='$hi', value='Say hello', inline=False)
-        embed_help.add_field(name='$view', value='Show database (Not to you though)', inline=False)
-        embed_help.add_field(name='$link <link>', value='Save tenno.zone link.', inline=False)
-        embed_help.add_field(name='$items', value='Show orders of items from warframe.market.', inline=False)
-        await message.channel.send(embed=embed_help)
+        await message.channel.send(embed=help_message())
 
-    #View databas contents.
+    #View database contents in console, will be removed.
     if message.content.startswith('$view'):
         await message.channel.send('You have no power here')
         for user in user_links.find():
@@ -43,24 +49,30 @@ async def on_message(message):
 
     #Saves link to MongoDB
     if message.content.startswith('$link'):
-        #TODO Provide more feedback
         #Delete the message to prevent others using the link
         await message.delete()
-
+        temp_message = await message.channel.send(f'Received link command from {message.author.mention}. Please wait...')
         try:
             link = message.content.split()[1]
+
+            if not link.startswith('https://tenno.zone/planner/'):
+                raise Exception
+
         except:
-            await message.channel.send('Enter a valid link or type $help')
+            await message.channel.send(f'{message.author.mention} Enter a valid link or type $help')
         else:
             try:
                 user_links.update_one(dict(user=message.author.id), {'$set':{'link':link}},upsert=True)
-            except:
-                await message.channel.send('Cannot connect to Database') 
-
+            except: 
+                await message.channel.send(f'{message.author.mention} Cannot connect to Database. Please try again') 
+            else:
+                await message.channel.send(f'Successfully added tenno.zone link for {message.author.mention}')
+        finally:
+            await temp_message.delete()
 
     #Get link from database and replies with messages containing item orders
     if message.content.startswith('$items'):
-
+        #TODO check link exists
             link= user_links.find_one({'user':message.author.id},{'link':1})['link']
 
             items = wf.get_item_list(link)
@@ -83,6 +95,6 @@ async def on_message(message):
                     await message.channel.send(embed=embed_item)
 
                 #Wait between items to keep within 3 API requests per second
-                time.sleep(0.4)
+                await discord.asyncio.sleep(0.4)
 
 client_disc.run(os.getenv('TOKEN'))

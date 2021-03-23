@@ -18,7 +18,7 @@ def get_mod_dataframe():
     url = 'https://raw.githubusercontent.com/WFCD/warframe-items/development/data/json/Mods.json'
     
     try:
-        json_raw = urllib.request.urlopen(url)          
+        json_raw = urllib.request.urlopen(url)
         data = json.loads(json_raw.read())
     except:
         print('Error getting mod list')
@@ -82,11 +82,11 @@ def get_item_list(url):
     except:
         print(f'Error connecting to {url}')
     else:
+        print('Connected to tenno zone, retrieving items...')
         expand_checkbox = browser.find_element_by_xpath("//*[contains(text(), 'Include vaulted sets')]")
         browser.execute_script("arguments[0].click();", expand_checkbox.find_element_by_tag_name('input'))
         items = browser.find_elements_by_class_name('part-set')
-        print('Connected to tenno zone, retrieving items...')
-
+        
         for item in items:
             parts = item.find_elements_by_tag_name('label')
             for part in parts:
@@ -99,7 +99,7 @@ def get_item_list(url):
                         elif part.text.title().find('Chassis') > -1: item_names.append(item_name + ' Chassis')
                         else: item_names.append(item_name + ' ' + part.text.title())              
                     else: item_names.append(item_name + ' Set')
-    finally:            
+    finally:
         browser.quit()
         
     return item_names
@@ -113,7 +113,7 @@ def get_market_prices(item, type='mod'):
     url_item = api_url + name_url + '/' + catagory
 
     try:
-        json_url_item = urllib.request.urlopen(url_item)          
+        json_url_item = urllib.request.urlopen(url_item)
     except:
         print(f'Item: {item} not found')
     else:
