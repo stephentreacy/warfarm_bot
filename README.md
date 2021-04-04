@@ -8,4 +8,4 @@ Uses Selenium to get selected items and the [warframe.market](https://warframe.m
 
 Creates an embeded message containing a [warframe.market](https://warframe.market/) link for the item and the most relevant buy and sale orders.
 
-![alt text](https://github.com/stephentreacy/warframe_buy_or_farm/blob/main/images/output_webpage.PNG?raw=true)
+![Example Image](https://raw.githubusercontent.com/stephentreacy/warfarm_bot/main/images/warfarm_bot_example.PNG)
