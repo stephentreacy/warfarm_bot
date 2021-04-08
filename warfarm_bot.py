@@ -35,15 +35,15 @@ async def on_message(message):
         return
 
     #Test case to check bot is replying
-    if message.content.startswith('$hi '):
+    if message.content == '$hi':
         await message.channel.send('hello')
 
     #Create Embeded message with commands
-    if message.content.startswith('$help '):
+    if message.content == '$help':
         await message.channel.send(embed=help_message())
 
     #View database contents in console, for testing purposes.
-    if message.content.startswith('$view '):
+    if message.content == '$view':
         await message.channel.send('You have no power here')
         for user in user_links.find():
             print(user)
@@ -73,17 +73,19 @@ async def on_message(message):
             await ack_message.delete()
 
     #Get link from database and replies with messages containing item orders
-    if message.content.startswith('$items '):
-        #TODO check link exists
+    if message.content == '$items':
+        #TODO Embeds have limits, manages about 8 items. (number of embed messages = ceil(n/8))
         #TODO add items to MongoDB, check if item has been called recently to save time
-
+        #TODO Check user is in DB, check for div with error in HTML that the link is valid
+        
         ack_message = await message.channel.send(f'Received items command from {message.author.mention}. Please wait...')
 
         link= user_links.find_one({'user':message.author.id},{'link':1})['link']
 
         items = wf.get_item_list(link)
 
-        embed_items = discord.Embed(title="Mention user who sent message", colour=discord.Colour(0xdaeb67), description="Mention user on who called sent if mentions cant be in title")
+        #Create Embeded message for items
+        embed_items = discord.Embed(title="Warframe.Market Orders", colour=discord.Colour(0xdaeb67), description=message.author.mention)
 
         for item in items:
             orders = wf.get_market_prices(item, 'item')
@@ -92,23 +94,24 @@ async def on_message(message):
                 df_sell = df_orders[(df_orders['user.status'] == 'ingame') & (df_orders['order_type'] == 'sell')]
                 df_buy = df_orders[(df_orders['user.status'] == 'ingame') & (df_orders['order_type'] == 'buy')]
                 sell_orders = df_sell.nsmallest(5, 'platinum')['platinum'].values.tolist()
-                sell_orders = ', '.join(str(int(order)) for order in sell_orders) if sell_orders else 'None'
+                sell_orders = ', '.join(str(int(order)) for order in sell_orders) if sell_orders else 'No Orders'
                 buy_orders = df_buy.nlargest(5, 'platinum')['platinum'].values.tolist()
-                buy_orders = ', '.join(str(int(order)) for order in buy_orders) if buy_orders else 'None'
+                buy_orders = ', '.join(str(int(order)) for order in buy_orders) if buy_orders else 'No Orders'
 
-                #Create Embeded message with item information                  
+                               
                 embed_items.add_field(name="Item", value="[**"+item+"**](https://warframe.market/items/"+ item.lower().replace(' ','_').replace('-','_').replace("'",'').replace('&','and')+")",inline=True)
                 embed_items.add_field(name="Buy Orders", value=buy_orders, inline=True)
                 embed_items.add_field(name="Sell Orders", value=sell_orders, inline=True)                   
 
             #Wait between items to keep within 3 API requests per second
             await asyncio.sleep(0.4)
+
         await message.channel.send(embed=embed_items)
         await ack_message.delete()
 
 if __name__ == '__main__':
-    client_disc.run(os.getenv('TOKEN'))
-
     client_db = pymongo.MongoClient()
     user_links_db = client_db['links_db']
     user_links = user_links_db['user_links']
+
+    client_disc.run(os.getenv('TOKEN'))
