@@ -4,11 +4,11 @@ A Discord bot that can save tenno.zone links for users and get up to date prices
 
 import discord
 import os
-import time
 import asyncio
 import pymongo
 import warfarm as wf
 import pandas as pd
+from datetime import datetime, timezone
 
 def help_message():
     """Create Embeded message with available commands"""
@@ -48,6 +48,9 @@ async def on_message(message):
         for user in user_links.find():
             print(user)
 
+        for item in saved_items.find():
+            print(item)
+
     #Saves link to MongoDB
     if message.content.startswith('$link '):
         #Delete the message to prevent others using the link
@@ -75,7 +78,7 @@ async def on_message(message):
     #Get link from database and replies with messages containing item orders
     if message.content == '$items':
         #TODO Embeds have limits, manages about 8 items. (number of embed messages = ceil(n/8))
-        #TODO add items to MongoDB, check if item has been called recently to save time
+        #TODO Check if item has been called recently to save time
         #TODO Check user is in DB, check for div with error in HTML that the link is valid
         
         ack_message = await message.channel.send(f'Received items command from {message.author.mention}. Please wait...')
@@ -88,6 +91,10 @@ async def on_message(message):
         embed_items = discord.Embed(title="Warframe.Market Orders", colour=discord.Colour(0xdaeb67), description=message.author.mention)
 
         for item in items:
+            #Check database first
+            current_time = datetime.now(timezone.utc)
+            saved_item = saved_items.find_one({'item':item})
+
             orders = wf.get_market_prices(item, 'item')
             if orders:
                 df_orders = pd.json_normalize(orders['orders'])
@@ -98,10 +105,11 @@ async def on_message(message):
                 buy_orders = df_buy.nlargest(5, 'platinum')['platinum'].values.tolist()
                 buy_orders = ', '.join(str(int(order)) for order in buy_orders) if buy_orders else 'No Orders'
 
-                               
                 embed_items.add_field(name="Item", value="[**"+item+"**](https://warframe.market/items/"+ item.lower().replace(' ','_').replace('-','_').replace("'",'').replace('&','and')+")",inline=True)
                 embed_items.add_field(name="Buy Orders", value=buy_orders, inline=True)
-                embed_items.add_field(name="Sell Orders", value=sell_orders, inline=True)                   
+                embed_items.add_field(name="Sell Orders", value=sell_orders, inline=True)   
+
+                saved_items.update_one(dict(item=item), {'$set':{'buy_orders':buy_orders,'sell_orders':sell_orders,'updated':current_time}},upsert=True)                
 
             #Wait between items to keep within 3 API requests per second
             await asyncio.sleep(0.4)
@@ -111,7 +119,8 @@ async def on_message(message):
 
 if __name__ == '__main__':
     client_db = pymongo.MongoClient()
-    user_links_db = client_db['links_db']
-    user_links = user_links_db['user_links']
+    warfarm_db = client_db['warfarm_db']
+    user_links = warfarm_db['user_links']
+    saved_items = warfarm_db['saved_items']
 
     client_disc.run(os.getenv('TOKEN'))
