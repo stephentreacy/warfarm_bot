@@ -78,7 +78,6 @@ async def on_message(message):
     #Get link from database and replies with messages containing item orders
     if message.content == '$items':
         #TODO Embeds have limits, manages about 8 items. (number of embed messages = ceil(n/8))
-        #TODO Check if item has been called recently to save time
         #TODO Check user is in DB, check for div with error in HTML that the link is valid
         
         ack_message = await message.channel.send(f'Received items command from {message.author.mention}. Please wait...')
@@ -89,30 +88,37 @@ async def on_message(message):
 
         #Create Embeded message for items
         embed_items = discord.Embed(title="Warframe.Market Orders", colour=discord.Colour(0xdaeb67), description=message.author.mention)
+        current_time = datetime.now()
 
         for item in items:
-            #Check database first
-            current_time = datetime.now(timezone.utc)
+            #Check database first for recent items
             saved_item = saved_items.find_one({'item':item})
+            time_difference = (current_time-saved_item['updated']).seconds
 
-            orders = wf.get_market_prices(item, 'item')
-            if orders:
-                df_orders = pd.json_normalize(orders['orders'])
-                df_sell = df_orders[(df_orders['user.status'] == 'ingame') & (df_orders['order_type'] == 'sell')]
-                df_buy = df_orders[(df_orders['user.status'] == 'ingame') & (df_orders['order_type'] == 'buy')]
-                sell_orders = df_sell.nsmallest(5, 'platinum')['platinum'].values.tolist()
-                sell_orders = ', '.join(str(int(order)) for order in sell_orders) if sell_orders else 'No Orders'
-                buy_orders = df_buy.nlargest(5, 'platinum')['platinum'].values.tolist()
-                buy_orders = ', '.join(str(int(order)) for order in buy_orders) if buy_orders else 'No Orders'
+            if time_difference < 3600:
+                #If last API request was within the last hour, use database values
+                buy_orders = saved_item['buy_orders']
+                sell_orders = saved_item['sell_orders']  
+            else:
+                #Else get update from API
+                orders = wf.get_market_prices(item, 'item')
+                #Wait between items to keep within 3 API requests per second
+                await asyncio.sleep(0.4)
 
-                embed_items.add_field(name="Item", value="[**"+item+"**](https://warframe.market/items/"+ item.lower().replace(' ','_').replace('-','_').replace("'",'').replace('&','and')+")",inline=True)
-                embed_items.add_field(name="Buy Orders", value=buy_orders, inline=True)
-                embed_items.add_field(name="Sell Orders", value=sell_orders, inline=True)   
+                if orders:
+                    df_orders = pd.json_normalize(orders['orders'])
+                    df_sell = df_orders[(df_orders['user.status'] == 'ingame') & (df_orders['order_type'] == 'sell')]
+                    df_buy = df_orders[(df_orders['user.status'] == 'ingame') & (df_orders['order_type'] == 'buy')]
+                    sell_orders = df_sell.nsmallest(5, 'platinum')['platinum'].values.tolist()
+                    sell_orders = ', '.join(str(int(order)) for order in sell_orders) if sell_orders else 'No Orders'
+                    buy_orders = df_buy.nlargest(5, 'platinum')['platinum'].values.tolist()
+                    buy_orders = ', '.join(str(int(order)) for order in buy_orders) if buy_orders else 'No Orders'
 
-                saved_items.update_one(dict(item=item), {'$set':{'buy_orders':buy_orders,'sell_orders':sell_orders,'updated':current_time}},upsert=True)                
+                    saved_items.update_one(dict(item=item), {'$set':{'buy_orders':buy_orders,'sell_orders':sell_orders,'updated':current_time}},upsert=True)
 
-            #Wait between items to keep within 3 API requests per second
-            await asyncio.sleep(0.4)
+            embed_items.add_field(name="Item", value="[**"+item+"**](https://warframe.market/items/"+ item.lower().replace(' ','_').replace('-','_').replace("'",'').replace('&','and')+")",inline=True)
+            embed_items.add_field(name="Buy Orders", value=buy_orders, inline=True)
+            embed_items.add_field(name="Sell Orders", value=sell_orders, inline=True)   
 
         await message.channel.send(embed=embed_items)
         await ack_message.delete()
